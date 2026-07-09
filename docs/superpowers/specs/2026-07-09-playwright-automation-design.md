@@ -6,13 +6,21 @@
 
 ## 1. 项目目标
 
-创建一个**与业务解耦的通用 Playwright 测试框架**,使测试人员能够通过:
+创建一个**与业务解耦的通用 Playwright 测试框架**,使测试人员能够对**未知源码的网站**完成:
 
-1. **JSON 文件声明测试用例**(`cases/*.json`)——无需编写 TypeScript 即可覆盖常见 Web 测试场景。
-2. **JSON 文件记录测试进度**(`data/runs/*.json`)——每次运行生成可解析、可恢复的状态文件。
-3. **TypeScript 扩展自定义能力**——当 JSON 表达力不足时,通过自定义 action 和 spec 文件扩展。
+1. **自动发现**(Discover)——通过 Playwright 爬取页面、识别交互元素、拦截 API,输出候选素材。
+2. **候选用例生成**(Generate)——把发现结果转成 JSON 测试用例草稿,供人工确认。
+3. **JSON 文件声明测试用例**(`cases/*.json`)——确认后的用例无需编写 TypeScript 即可执行。
+4. **JSON 文件记录测试进度**(`data/runs/*.json`)——每次运行生成可解析、可恢复的状态文件。
+5. **TypeScript 扩展自定义能力**——当 JSON 表达力不足时,通过自定义 action 和 spec 文件扩展。
 
-VideoClaw 作为首个参考应用,但首版框架本身不绑定任何 VideoClaw 业务逻辑。
+核心闭环:
+
+```
+Discover → Generate Candidate Cases → Human Review → Execute → Report
+```
+
+VideoClaw 作为设计参考(尤其是 JSON 状态持久化理念),但首版框架本身不绑定任何 VideoClaw 业务逻辑。
 
 ## 2. 技术选型
 
@@ -31,11 +39,17 @@ playwright-web-automation/
 ├── src/                              # 框架核心(通用、可复用)
 │   ├── core/
 │   │   ├── BasePage.ts               # Page Object 基类
+│   │   ├── DiscoveryEngine.ts        # 页面发现与元素/API 识别引擎
+│   │   ├── HeuristicFinder.ts        # 启发式元素识别(登录/搜索表单等)
+│   │   ├── NetworkRecorder.ts        # 网络请求拦截与记录
+│   │   ├── CandidateGenerator.ts     # 把发现结果转成 JSON case 草稿
 │   │   ├── JsonCaseEngine.ts         # JSON 用例解析与执行引擎
 │   │   ├── ProgressTracker.ts        # 进度 JSON 创建与更新
 │   │   ├── ActionRegistry.ts         # Action 注册表(内置 + 自定义)
 │   │   ├── StreamingWaiter.ts        # SSE / WebSocket / 长轮询等待(可选高级)
 │   │   └── InterventionPoint.ts      # 人在回路确认点抽象(可选高级)
+│   ├── cli/
+│   │   └── discover.ts               # Discovery CLI 入口
 │   ├── fixtures/
 │   │   └── index.ts                  # Playwright test.extend
 │   ├── reporters/
@@ -45,11 +59,19 @@ playwright-web-automation/
 │   │   ├── caseLoader.ts             # 加载/校验 JSON case
 │   │   └── retry.ts                  # 通用重试工具
 │   └── index.ts                      # 对外导出
-├── cases/                            # JSON 声明式测试用例
+├── cases/                            # 已确认可执行的 JSON 测试用例
 │   └── examples/                     # 通用示例(不绑业务)
 │       ├── login.json
 │       ├── crud-task.json
 │       └── api-mock.json
+├── discovered/                       # 自动发现产出的候选素材(.gitignore)
+│   └── {domain}/
+│       ├── pages.json
+│       ├── forms.json
+│       ├── apis.json
+│       └── candidates/
+│           ├── login.json            # 未确认的候选 case 草稿
+│           └── search.json
 ├── specs/                            # TypeScript 编程式测试用例
 │   └── examples/
 │       └── sample.spec.ts
@@ -82,7 +104,47 @@ export abstract class BasePage {
 }
 ```
 
-### 4.2 JsonCaseEngine
+### 4.2 DiscoveryEngine
+
+对目标网站进行受控爬取与交互探测,输出候选测试素材:
+
+- 从入口 URL 开始,按配置深度(默认 2 层)遍历内链。
+- 对每个页面调用 `HeuristicFinder` 识别登录/搜索/表单等元素。
+- 启用 `NetworkRecorder` 拦截并记录所有 XHR/fetch。
+- 输出到 `discovered/{domain}/`。
+
+### 4.3 HeuristicFinder
+
+基于规则 + 启发式识别常见交互元素,不依赖源码:
+
+| 识别目标 | 规则示例 |
+|---|---|
+| 登录表单 | 含 `input[type=password]` 的 form |
+| 用户名/邮箱 | `input[type=email]`, `input[name*=user\|email\|phone]`, `aria-label` 含 "用户名/邮箱" |
+| 搜索/查询 | `input[type=search]`, placeholder 含 "搜索/Search", `name*=q\|keyword\|query` |
+| 提交按钮 | `button[type=submit]`, `input[type=submit]` |
+
+每个识别结果带 `confidence` 分数(0-1),低于阈值的进入人工 review。
+
+### 4.4 NetworkRecorder
+
+通过 Playwright `page.route('**/*')` 拦截所有请求:
+
+- 记录 URL、method、headers、request payload、response status。
+- 对重复 API 做去重,保留典型样本。
+- 输出 `apis.json`,供 CandidateGenerator 生成 API 断言或 mock。
+
+### 4.5 CandidateGenerator
+
+把 `DiscoveryEngine` + `HeuristicFinder` + `NetworkRecorder` 的结果转成 JSON case 草稿:
+
+- 登录表单 → `candidates/login.json`
+- 搜索框 → `candidates/search.json`
+- 表单提交后触发的 API → 在 case 中生成 `mocks` 或 `assertions` 占位
+
+候选 case 不会被 `JsonCaseEngine` 直接执行;必须人工 review 后复制/移动到 `cases/`。
+
+### 4.6 JsonCaseEngine
 
 读取 `cases/*.json`,按步骤调度执行,并把结果交给 `ProgressTracker`:
 
@@ -91,7 +153,7 @@ export abstract class BasePage {
 - 每个 step 的 `action` 从 `ActionRegistry` 查找。
 - 失败即停止当前 case,但隔离不影响其他 case。
 
-### 4.3 ProgressTracker
+### 4.7 ProgressTracker
 
 每次测试 run 生成唯一 `runId`,格式为 `YYYY-MM-DD_HH-mm-ss_{short-uuid}`,并维护一个 JSON 状态文件:
 
@@ -109,7 +171,7 @@ export abstract class BasePage {
 }
 ```
 
-### 4.4 ActionRegistry
+### 4.8 ActionRegistry
 
 内置通用 action:
 
@@ -173,7 +235,54 @@ export abstract class BasePage {
 | `steps` | 是 | 执行步骤数组 |
 | `assertions` | 否 | 最终断言数组 |
 
-## 6. 环境变量
+## 6. Discovery CLI 工作流程
+
+对未知网站,典型使用流程如下:
+
+### 步骤 1:发现素材
+
+```bash
+npm run discover -- --url=https://example.com --depth=2 --output=discovered/example.com
+```
+
+参数:
+
+| 参数 | 默认值 | 说明 |
+|---|---|---|
+| `--url` | 必填 | 目标网站入口 |
+| `--depth` | 2 | 爬取深度 |
+| `--output` | `discovered/{hostname}` | 输出目录 |
+| `--max-pages` | 50 | 最大爬取页面数,防止失控 |
+
+### 步骤 2:查看发现产物
+
+```bash
+ls discovered/example.com/
+# pages.json  forms.json  apis.json  candidates/login.json  candidates/search.json
+```
+
+### 步骤 3:人工 review 并确认
+
+编辑 `discovered/example.com/candidates/*.json`:
+
+- 修正不准确的 selector。
+- 填入环境变量占位符(如 `${USERNAME}`、`${PASSWORD}`)。
+- 调整断言预期。
+- 确认后复制到 `cases/`。
+
+### 步骤 4:执行
+
+```bash
+npm run test:json
+```
+
+### 设计约束
+
+- `discovered/` 下的候选 case **永远不会被自动执行**,避免误操作(如点击删除)。
+- 发现引擎只使用**规则 + 启发式**,不使用 LLM,保证可预测性。
+- 对反爬强、需要 MFA、大量 iframe/Canvas 的网站,发现质量会下降,需人工补全。
+
+## 7. 环境变量
 
 通过 `.env` / `.env.local` 配置:
 
@@ -201,7 +310,7 @@ export const env = {
 };
 ```
 
-## 7. 错误处理与报告
+## 8. 错误处理与报告
 
 ### 7.1 Action 级重试
 
@@ -226,7 +335,7 @@ export const env = {
 - **JSON 进度报告**:每个 run 产出 `data/runs/{runId}.json`,可被 CI 解析。
 - **Console 摘要**:测试结束时输出通过/失败统计。
 
-## 8. CI / CD
+## 9. CI / CD
 
 提供 GitHub Actions 示例 `.github/workflows/playwright.yml`:
 
@@ -252,29 +361,41 @@ jobs:
             test-results/
 ```
 
-## 9. 与 VideoClaw 的关系
+## 10. 与 VideoClaw 的关系
 
 - **首版不绑定 VideoClaw**:框架本身是通用的,示例用例使用虚构的 Todo/Admin 场景。
 - **VideoClaw 作为后续示例**:在框架稳定后,可在 `cases/videoclaw/` 下添加针对 VideoClaw 工作流的 JSON case,用于验证 `StreamingWaiter` / `InterventionPoint` 等高级抽象。
 - **设计参考**:JSON case + JSON progress 的模式直接参考 VideoClaw 的 `sessions/{session_id}.json` 状态持久化思路。
 
-## 10. 首版范围(明确不做)
+## 11. 首版范围(明确不做)
 
 以下功能不在第一版实现,留作后续迭代:
 
 - VideoClaw 专属示例用例
+- 自动执行未确认的候选 case(`discovered/` 下的 case 必须人工 review 后移入 `cases/`)
+- 基于 LLM 的语义解析(如"猜出这个输入框是干什么的")
 - 进度 JSON 的断点续跑(从失败 step 恢复)
 - Web 可视化报告(UI dashboard)
 - 多浏览器矩阵的复杂配置(先用 Chromium,后续加 Firefox/WebKit)
 - 数据库集成或历史趋势分析
+- 自动处理 CAPTCHA / 复杂反爬 / MFA
 
-## 11. 成功标准
+## 12. 成功标准
 
 首版完成后,应能运行:
 
 ```bash
 npm install
 npx playwright install
+
+# 1. 对任意网站执行发现
+npm run discover -- --url=https://example.com --depth=2
+
+# 2. 查看发现产物
+cat discovered/example.com/forms.json
+cat discovered/example.com/candidates/login.json
+
+# 3. 把确认后的候选 case 放入 cases/ 并执行
 npm run test:json    # 运行 cases/examples/*.json
 npm run test:ts      # 运行 specs/examples/*.spec.ts
 npm run report       # 打开 HTML 报告
@@ -282,12 +403,14 @@ npm run report       # 打开 HTML 报告
 
 并产生:
 
-1. `data/runs/YYYY-MM-DD_HH-mm-ss_xxxx.json` 进度文件。
-2. 清晰的 HTML / console 报告。
-3. 至少 3 个可运行的 JSON 示例用例。
-4. 1 个可运行的 TypeScript 编程式示例用例。
+1. `discovered/{domain}/` 下的 `pages.json`、`forms.json`、`apis.json` 和 `candidates/*.json`。
+2. `cases/examples/` 下至少 3 个人工确认后的 JSON 示例用例。
+3. `data/runs/YYYY-MM-DD_HH-mm-ss_xxxx.json` 进度文件。
+4. 清晰的 HTML / console 报告。
+5. 1 个可运行的 TypeScript 编程式示例用例。
+6. 对典型语义化网站(含明确 login form 和 search input),发现引擎能识别出登录和搜索表单。
 
-## 12. 待决策项
+## 13. 待决策项
 
 | 项 | 当前假设 | 备注 |
 |---|---|---|
