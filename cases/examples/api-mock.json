@@ -1,0 +1,23 @@
+{
+  "id": "example-api-mock",
+  "name": "Example with mocked API",
+  "target": {
+    "baseUrl": "${BASE_URL}",
+    "entry": "/dashboard"
+  },
+  "mocks": [
+    {
+      "url": "**/api/tasks",
+      "method": "GET",
+      "status": 200,
+      "body": { "tasks": [{ "id": "1", "title": "Mocked Task" }] }
+    }
+  ],
+  "steps": [
+    { "action": "goto", "params": { "url": "/dashboard" } },
+    { "action": "waitForText", "params": { "selector": "[data-testid=task-list]", "text": "Mocked Task" } }
+  ],
+  "assertions": [
+    { "type": "visible", "selector": "text=Mocked Task" }
+  ]
+}

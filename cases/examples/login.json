@@ -1,0 +1,18 @@
+{
+  "id": "example-login",
+  "name": "Example login flow",
+  "target": {
+    "baseUrl": "${BASE_URL}",
+    "entry": "/login"
+  },
+  "steps": [
+    { "action": "goto", "params": { "url": "/login" } },
+    { "action": "fill", "params": { "selector": "[data-testid=username]", "value": "${USERNAME}" } },
+    { "action": "fill", "params": { "selector": "[data-testid=password]", "value": "${PASSWORD}" } },
+    { "action": "click", "params": { "selector": "[data-testid=login-button]" } },
+    { "action": "waitForState", "params": { "selector": "[data-testid=dashboard]", "state": "visible" } }
+  ],
+  "assertions": [
+    { "type": "urlContains", "expected": "/dashboard" }
+  ]
+}

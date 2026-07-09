@@ -1,0 +1,19 @@
+{
+  "id": "example-crud-task",
+  "name": "Example create and delete task",
+  "target": {
+    "baseUrl": "${BASE_URL}",
+    "entry": "/dashboard"
+  },
+  "steps": [
+    { "action": "goto", "params": { "url": "/dashboard" } },
+    { "action": "fill", "params": { "selector": "[data-testid=new-task-input]", "value": "自动化测试任务" } },
+    { "action": "click", "params": { "selector": "[data-testid=add-task]" } },
+    { "action": "waitForText", "params": { "selector": "[data-testid=task-list]", "text": "自动化测试任务" } },
+    { "action": "click", "params": { "selector": "[data-testid=delete-task]" } },
+    { "action": "waitForState", "params": { "selector": "[data-testid=empty-state]", "state": "visible" } }
+  ],
+  "assertions": [
+    { "type": "notVisible", "selector": "text=自动化测试任务" }
+  ]
+}
