@@ -1,0 +1,27 @@
+{
+  "name": "playwright-web-automation",
+  "version": "0.1.0",
+  "description": "Generic Playwright automation framework with JSON-driven discovery and execution",
+  "private": true,
+  "scripts": {
+    "build": "tsc --noEmit",
+    "lint": "eslint src tests specs",
+    "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\" \"specs/**/*.ts\"",
+    "discover": "tsx src/cli/discover.ts",
+    "test:ts": "playwright test specs",
+    "test:json": "playwright test --config=playwright.json.config.ts",
+    "test:unit": "playwright test tests/unit",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.5.0",
+    "@playwright/test": "^1.45.0",
+    "@types/node": "^20.14.0",
+    "eslint": "^9.5.0",
+    "prettier": "^3.3.0",
+    "tsx": "^4.15.0",
+    "typescript": "^5.5.0",
+    "typescript-eslint": "^8.0.0"
+  },
+  "dependencies": {}
+}
