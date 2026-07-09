@@ -1,0 +1,13 @@
+你是测试用例生成助手。输出必须是合法 JSON，不要附加任何解释。
+可用动作：goto / fill / click / waitForState。
+断言类型：visible / notVisible / urlContains / textContains。
+
+
+根据以下发现的表单，生成一个登录测试用例（JSON 格式）。
+
+目标页面：https://example.com/login
+用户名字段选择器：#username
+密码字段选择器：#password
+提交按钮选择器：#submit
+
+要求：先 goto 目标页面，填充用户名与密码，点击提交，并断言登录后页面可见。

@@ -7,6 +7,7 @@ A TypeScript Playwright framework for testing web applications with JSON-driven 
 - **Automatic Discovery**: Crawl an unknown website, detect login/search forms, record APIs, and generate candidate JSON test cases.
 - **JSON-Driven Tests**: Write test cases as JSON files without TypeScript.
 - **Progress Tracking**: Every test run produces a JSON progress file under `data/runs/`.
+- **Prompt Management**: A zero-dependency module assembles LLM-ready prompt strings from versioned `.md` templates, with type-safe definitions, composition, and snapshot contract tests.
 - **TypeScript Extensibility**: Add custom actions and Page Objects when JSON is not enough.
 
 ## Quick Start
@@ -72,6 +73,7 @@ playwright-web-automation/
 │   └── ProgressTracker.ts
 ├── src/cli/            # CLI tools
 │   └── discover.ts
+├── src/prompts/        # Prompt management (templates + registry + renderer)
 ├── src/types/          # Shared TypeScript types
 ├── src/utils/          # Utilities (env, caseLoader)
 ├── cases/              # Confirmed JSON test cases
@@ -109,6 +111,25 @@ registry.register('customAction', async ({ page }, params) => {
   // your logic
 });
 ```
+
+## Prompt Management
+
+A zero-dependency module for assembling LLM-ready prompt strings from versioned `.md` templates. It produces strings only (no model calls) — execution is handled by a separate provider module.
+
+Prompt text lives in `.md` files with frontmatter; type-safe definitions live in TypeScript:
+
+```ts
+import { createRegistry, definePrompt } from 'playwright-web-automation';
+
+const greet = definePrompt<{ name: string }>('example/hello');
+const registry = createRegistry({ contentDir: 'src/prompts/content', definitions: [greet] });
+
+const result = registry.render(greet, { name: 'world' });
+console.log(result.text);     // the final prompt string
+console.log(result.version);  // '1.0.0'
+```
+
+Prompt edits are locked by snapshot contract tests (drift detection). See `src/prompts/` and `docs/superpowers/specs/2026-07-09-prompt-management-design.md`.
 
 ## License
 

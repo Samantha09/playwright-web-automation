@@ -9,6 +9,30 @@ export { ProgressTracker } from './core/ProgressTracker';
 export { loadCases, substituteEnvVars } from './utils/caseLoader';
 export { env } from './utils/env';
 export { retry } from './utils/retry';
+export {
+  parseFrontmatter,
+  normalizePromptText,
+  loadPrompts,
+  assertNoDuplicates,
+  definePrompt,
+  substitutePlaceholders,
+  composeBody,
+  PromptRegistry,
+  createRegistry,
+} from './prompts';
+export type {
+  PromptFile,
+  PromptDefinition,
+  RenderOptions,
+  RenderResult,
+  RegistryOptions,
+} from './prompts';
+export {
+  createExampleRegistry,
+  helloPrompt,
+  generateCase,
+  DEFAULT_EXAMPLE_CONTENT_DIR,
+} from './prompts/example';
 export type { Case, CaseStep, CaseAssertion, CaseResult, ApiMock } from './types/case';
 export type {
   CandidateCase,
