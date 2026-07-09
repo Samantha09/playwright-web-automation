@@ -41,7 +41,7 @@ export interface StepResult {
 }
 
 export interface CaseResult {
-  status: 'passed' | 'failed' | 'skipped';
+  status: 'running' | 'passed' | 'failed' | 'skipped';
   startedAt?: string;
   completedAt?: string;
   steps: StepResult[];
