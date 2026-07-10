@@ -115,6 +115,15 @@ export class JsonCaseEngine {
         await page.waitForURL(String(assertion.expected), { timeout: 5000 });
         break;
       }
+      case 'urlNotContains': {
+        if (!assertion.expected) throw new Error('urlNotContains assertion requires expected');
+        await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => undefined);
+        const currentUrl = page.url();
+        if (currentUrl.includes(String(assertion.expected))) {
+          throw new Error(`URL should not contain "${assertion.expected}", got: ${currentUrl}`);
+        }
+        break;
+      }
       case 'textContains': {
         if (!assertion.selector || !assertion.expected) {
           throw new Error('textContains assertion requires selector and expected');

@@ -13,7 +13,9 @@ export class HeuristicFinder {
       const hasPassword = fields.some((f) => f.role === 'password');
       if (!hasPassword && fields.length === 0) continue;
 
-      const submitSelector = await this.findSubmitSelector(form);
+      const submitSelector =
+        (await this.findSubmitSelector(form)) ??
+        (await this.findSubmitSelector(page.locator('body')));
       forms.push({
         id: `form-${i}`,
         pageUrl,
@@ -93,6 +95,7 @@ export class HeuristicFinder {
       return 'username';
     }
     if (text.includes('search') || text.includes('搜索') || text.includes('query')) return 'search';
+    if (text.includes('captcha') || text.includes('验证码') || text.includes('verify')) return 'captcha';
     if (type === 'text') return 'text';
     if (type === 'textarea') return 'textarea';
 
@@ -103,12 +106,17 @@ export class HeuristicFinder {
   }
 
   private async findSubmitSelector(scope: Locator): Promise<string | undefined> {
-    const candidates = scope.locator(
-      'button[type="submit"], input[type="submit"], button:has-text("登录"), button:has-text("Login"), button:has-text("提交"), button:has-text("Submit")',
-    );
-    const count = await candidates.count();
-    if (count === 0) return undefined;
-    return this.getSelector(candidates.nth(0));
+    // 1) 标准提交按钮
+    const typed = scope.locator('button[type="submit"], input[type="submit"]');
+    if ((await typed.count()) > 0) return this.getSelector(typed.nth(0));
+
+    // 2) 按文本匹配（兼容 type="button"、文本含空格/大小写，如 "登 录"）
+    const byText = scope
+      .locator('button, input[type="button"], input[type="submit"]')
+      .filter({ hasText: /登\s*录|登录|login|log\s*in|submit|提交/i });
+    if ((await byText.count()) > 0) return this.getSelector(byText.nth(0));
+
+    return undefined;
   }
 
   private async getLabel(input: Locator): Promise<string | undefined> {
@@ -130,8 +138,17 @@ export class HeuristicFinder {
     if (id) return `#${id}`;
     const name = await locator.getAttribute('name').catch(() => null);
     if (name) return `[name="${name}"]`;
+
+    const tagName = await locator.evaluate((el: Element) => el.tagName.toLowerCase()).catch(() => '');
     const type = await locator.getAttribute('type').catch(() => null);
-    if (type) return `input[type="${type}"]`;
+
+    if (tagName === 'button') {
+      const text = (await locator.innerText().catch(() => '')).trim();
+      if (text) return `button:has-text("${text}")`;
+      if (type) return `button[type="${type}"]`;
+    }
+    if (tagName === 'input' && type) return `input[type="${type}"]`;
+    if (tagName && type) return `${tagName}[type="${type}"]`;
     return locator.toString();
   }
 }

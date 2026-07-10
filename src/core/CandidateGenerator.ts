@@ -20,6 +20,7 @@ export class CandidateGenerator {
   private generateLoginCase(form: DiscoveredForm, baseUrl: string): CandidateCase {
     const usernameField = form.fields.find((f) => f.role === 'username') || form.fields[0];
     const passwordField = form.fields.find((f) => f.role === 'password');
+    const captchaField = form.fields.find((f) => f.role === 'captcha');
     const entry = new URL(form.pageUrl).pathname;
 
     return {
@@ -34,6 +35,9 @@ export class CandidateGenerator {
           : []),
         ...(passwordField
           ? [{ action: 'fill', params: { selector: passwordField.selector, value: '${PASSWORD}' } }]
+          : []),
+        ...(captchaField
+          ? [{ action: 'fill', params: { selector: captchaField.selector, value: '${CAPTCHA}' } }]
           : []),
         ...(form.submitSelector
           ? [{ action: 'click', params: { selector: form.submitSelector } }]
