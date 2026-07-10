@@ -30,11 +30,13 @@ export class CandidateGenerator {
     nav.forEach((item, i) => {
       const navPath = this.urlPath(item.href);
       const safeText = !!item.text && !item.text.includes('"');
+      const clickSelector =
+        item.selector ?? (safeText ? `a:has-text("${item.text}")` : undefined);
       const steps: { action: string; params: Record<string, unknown> }[] = [
         { action: 'goto', params: { url: entry } },
       ];
-      if (safeText) {
-        steps.push({ action: 'click', params: { selector: `a:has-text("${item.text}")` } });
+      if (clickSelector) {
+        steps.push({ action: 'click', params: { selector: clickSelector } });
       } else if (navPath) {
         steps.push({ action: 'goto', params: { url: navPath } });
       }
@@ -69,7 +71,8 @@ export class CandidateGenerator {
     }
   }
 
-  private urlPath(href: string): string | undefined {
+  private urlPath(href?: string): string | undefined {
+    if (!href) return undefined;
     try {
       return new URL(href).pathname || undefined;
     } catch {

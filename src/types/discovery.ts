@@ -47,7 +47,10 @@ export interface DiscoveredAction {
 
 export interface DiscoveredNavItem {
   text: string;
-  href: string;
+  /** 锚点导航的链接(SPA 菜单可能没有) */
+  href?: string;
+  /** 可点击选择器(SPA 菜单为 li/div,需用选择器点击) */
+  selector?: string;
 }
 
 /** 页面结构:导航、标题大纲、可交互动作(表单由 DiscoveredForm 单独承载) */

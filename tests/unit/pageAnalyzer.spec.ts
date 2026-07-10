@@ -20,7 +20,7 @@ test('PageAnalyzer extracts nav, headings and actions', async ({ page }) => {
 
   // nav:去重后 2 项
   expect(structure.nav.length).toBe(2);
-  expect(structure.nav.some((n) => n.text === '首页' && n.href.includes('/home'))).toBe(true);
+  expect(structure.nav.some((n) => n.text === '首页' && n.href?.includes('/home'))).toBe(true);
 
   // headings
   expect(structure.headings).toEqual([
@@ -32,6 +32,21 @@ test('PageAnalyzer extracts nav, headings and actions', async ({ page }) => {
   expect(structure.actions.some((a) => a.kind === 'button' && a.selector === 'button#btn1')).toBe(true);
   expect(structure.actions.some((a) => a.kind === 'link' && a.text === '文档')).toBe(true);
   expect(structure.actions.some((a) => a.text === '首页')).toBe(false);
+});
+
+test('PageAnalyzer captures SPA menu items as nav with selector', async ({ page }) => {
+  await page.setContent(`
+    <ul class="ant-menu">
+      <li class="ant-menu-item">工作台</li>
+      <li class="ant-menu-item">主机管理</li>
+    </ul>
+  `);
+  const analyzer = new PageAnalyzer();
+  const structure = await analyzer.analyze(page);
+  const host = structure.nav.find((n) => n.text === '主机管理');
+  expect(host).toBeTruthy();
+  expect(host?.selector).toBe('li:has-text("主机管理")');
+  expect(host?.href).toBeUndefined();
 });
 
 test('PageAnalyzer caps actions', async ({ page }) => {

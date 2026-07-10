@@ -21,21 +21,33 @@ export class PageAnalyzer {
     return { title, nav, headings, actions };
   }
 
-  /** 导航链接(nav / [role=navigation] 内的 a[href]),按 text+href 去重 */
+  /** 导航:nav 内 a[href] + SPA 菜单项(.ant-menu-item / [role=menuitem]),按 text 去重 */
   private async extractNav(page: Page): Promise<DiscoveredNavItem[]> {
-    const items = await page
+    const anchors = await page
       .locator('nav a[href], [role="navigation"] a[href]')
-      .evaluateAll((anchors: HTMLAnchorElement[]) =>
-        anchors
-          .map((a) => ({ text: (a.innerText || a.textContent || '').trim(), href: a.href }))
+      .evaluateAll((els: HTMLAnchorElement[]) =>
+        els
+          .map((a) => ({ text: (a.innerText || a.textContent || '').trim(), href: a.href, selector: '' }))
           .filter((x) => x.text && x.href),
       );
+
+    const menuLoc = page.locator('.ant-menu-item, [role="menuitem"]');
+    const menuCount = await menuLoc.count();
+    const menu: DiscoveredNavItem[] = [];
+    for (let i = 0; i < menuCount && menu.length < MAX_NAV; i++) {
+      const el = menuLoc.nth(i);
+      const text = (await el.innerText().catch(() => '')).trim();
+      if (!text) continue;
+      const href = await el.getAttribute('href').catch(() => null);
+      const selector = await buildSelector(el);
+      menu.push({ text, ...(href ? { href } : {}), ...(selector ? { selector } : {}) });
+    }
+
     const seen = new Set<string>();
     const out: DiscoveredNavItem[] = [];
-    for (const it of items) {
-      const key = `${it.text}|${it.href}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
+    for (const it of [...anchors, ...menu]) {
+      if (seen.has(it.text)) continue;
+      seen.add(it.text);
       out.push(it);
       if (out.length >= MAX_NAV) break;
     }

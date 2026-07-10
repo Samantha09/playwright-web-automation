@@ -23,5 +23,10 @@ export async function buildSelector(locator: Locator): Promise<string> {
   }
   if (tagName === 'input' && type) return `input[type="${type}"]`;
   if (tagName && type) return `${tagName}[type="${type}"]`;
+  // 通用文本回退:有文本的非表单元素(如 SPA 菜单 li/div)用 tag:has-text
+  if (tagName) {
+    const text = (await locator.innerText().catch(() => '')).trim();
+    if (text && !text.includes('"')) return `${tagName}:has-text("${text}")`;
+  }
   return locator.toString();
 }
