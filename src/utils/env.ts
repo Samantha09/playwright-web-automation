@@ -8,4 +8,7 @@ export const env = {
   SCREENSHOT: process.env.SCREENSHOT || 'only-on-failure',
   USERNAME: process.env.USERNAME || '',
   PASSWORD: process.env.PASSWORD || '',
+  MINIMAX_API_KEY: process.env.MINIMAX_API_KEY || '',
+  MINIMAX_BASE_URL: process.env.MINIMAX_BASE_URL || 'https://api.minimaxi.com/anthropic',
+  MINIMAX_MODEL: process.env.MINIMAX_MODEL || 'MiniMax-M2.7',
 };

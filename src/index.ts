@@ -33,6 +33,8 @@ export {
   generateCase,
   DEFAULT_EXAMPLE_CONTENT_DIR,
 } from './prompts/example';
+export type { LLMProvider, CompletionOptions, CompletionResult, CompletionUsage } from './providers';
+export { MiniMaxProvider, createMiniMaxProviderFromEnv } from './providers';
 export type { Case, CaseStep, CaseAssertion, CaseResult, ApiMock } from './types/case';
 export type {
   CandidateCase,

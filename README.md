@@ -131,6 +131,34 @@ console.log(result.version);  // '1.0.0'
 
 Prompt edits are locked by snapshot contract tests (drift detection). See `src/prompts/` and `docs/superpowers/specs/2026-07-09-prompt-management-design.md`.
 
+## LLM Provider (MiniMax)
+
+A provider module calls MiniMax using the same Anthropic-compatible endpoint as finbot:
+
+```bash
+cp .env.example .env
+# Add your MINIMAX_API_KEY
+```
+
+```ts
+import { createExampleRegistry, generateCase, createMiniMaxProviderFromEnv } from 'playwright-web-automation';
+
+const registry = createExampleRegistry();
+const provider = createMiniMaxProviderFromEnv();
+
+const prompt = registry.render(generateCase, {
+  pageUrl: 'https://example.com/login',
+  usernameSelector: '#username',
+  passwordSelector: '#password',
+  submitSelector: '#submit',
+}).text;
+
+const { text } = await provider.complete(prompt);
+console.log(text); // LLM-generated JSON case
+```
+
+The provider is deliberately separate from the prompt module: prompts assemble strings, providers make network calls.
+
 ## License
 
 MIT
