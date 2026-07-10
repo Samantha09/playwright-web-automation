@@ -1,5 +1,6 @@
 import { Page, Locator } from '@playwright/test';
 import { DiscoveredForm, DiscoveredField } from '../types/discovery';
+import { buildSelector } from './selector';
 
 export class HeuristicFinder {
   async findForms(page: Page, pageUrl: string): Promise<DiscoveredForm[]> {
@@ -134,21 +135,6 @@ export class HeuristicFinder {
   }
 
   private async getSelector(locator: Locator): Promise<string> {
-    const id = await locator.getAttribute('id').catch(() => null);
-    if (id) return `#${id}`;
-    const name = await locator.getAttribute('name').catch(() => null);
-    if (name) return `[name="${name}"]`;
-
-    const tagName = await locator.evaluate((el: Element) => el.tagName.toLowerCase()).catch(() => '');
-    const type = await locator.getAttribute('type').catch(() => null);
-
-    if (tagName === 'button') {
-      const text = (await locator.innerText().catch(() => '')).trim();
-      if (text) return `button:has-text("${text}")`;
-      if (type) return `button[type="${type}"]`;
-    }
-    if (tagName === 'input' && type) return `input[type="${type}"]`;
-    if (tagName && type) return `${tagName}[type="${type}"]`;
-    return locator.toString();
+    return buildSelector(locator);
   }
 }

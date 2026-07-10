@@ -1,4 +1,7 @@
-import { DiscoveredForm, CandidateCase } from '../types/discovery';
+import { DiscoveredForm, CandidateCase, PageStructure } from '../types/discovery';
+import { slugify } from '../utils/slug';
+
+const MAX_NAV_CANDIDATES = 8;
 
 export class CandidateGenerator {
   generateFromForm(form: DiscoveredForm, baseUrl: string): CandidateCase[] {
@@ -15,6 +18,63 @@ export class CandidateGenerator {
     }
 
     return cases;
+  }
+
+  /** 从页面结构生成导航冒烟候选(点击导航链接 → 断言跳转/可见) */
+  generateFromStructure(structure: PageStructure, pageUrl: string, baseUrl: string): CandidateCase[] {
+    const entry = this.entryPath(pageUrl);
+    const pageSlug = this.pageSlug(pageUrl);
+    const cases: CandidateCase[] = [];
+    const nav = structure.nav.slice(0, MAX_NAV_CANDIDATES);
+
+    nav.forEach((item, i) => {
+      const navPath = this.urlPath(item.href);
+      const safeText = !!item.text && !item.text.includes('"');
+      const steps: { action: string; params: Record<string, unknown> }[] = [
+        { action: 'goto', params: { url: entry } },
+      ];
+      if (safeText) {
+        steps.push({ action: 'click', params: { selector: `a:has-text("${item.text}")` } });
+      } else if (navPath) {
+        steps.push({ action: 'goto', params: { url: navPath } });
+      }
+      cases.push({
+        id: `nav-${pageSlug}-${i + 1}`,
+        name: `导航冒烟: ${item.text}`,
+        confidence: 0.5,
+        target: { baseUrl, entry },
+        steps,
+        assertions: [
+          navPath ? { type: 'urlContains', expected: navPath } : { type: 'visible', selector: 'body' },
+        ],
+        source: 'heuristic-nav',
+      });
+    });
+    return cases;
+  }
+
+  private entryPath(pageUrl: string): string {
+    try {
+      return new URL(pageUrl).pathname || '/';
+    } catch {
+      return '/';
+    }
+  }
+
+  private pageSlug(pageUrl: string): string {
+    try {
+      return slugify(new URL(pageUrl).pathname) || 'root';
+    } catch {
+      return 'root';
+    }
+  }
+
+  private urlPath(href: string): string | undefined {
+    try {
+      return new URL(href).pathname || undefined;
+    } catch {
+      return undefined;
+    }
   }
 
   private generateLoginCase(form: DiscoveredForm, baseUrl: string): CandidateCase {

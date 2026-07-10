@@ -14,18 +14,48 @@ export interface DiscoveredForm {
   submitSelector?: string;
 }
 
+/** 录制的 API 请求载荷样本(首次出现时存) */
 export interface DiscoveredApi {
   url: string;
   method: string;
   seenCount: number;
-  sampleRequest?: unknown;
-  sampleResponse?: unknown;
+  sampleRequest?: { body?: unknown };
+  sampleResponse?: { status?: number; body?: unknown };
 }
 
 export interface DiscoveredPage {
   url: string;
   title?: string;
+  /** 同源可爬取链接(向后兼容,爬取用) */
   links: string[];
+  /** 页面结构模型(导航/标题/动作) */
+  structure?: PageStructure;
+}
+
+export interface DiscoveredHeading {
+  level: number;
+  text: string;
+}
+
+export interface DiscoveredAction {
+  kind: 'link' | 'button';
+  text: string;
+  selector: string;
+  /** 仅 link 有 */
+  href?: string;
+}
+
+export interface DiscoveredNavItem {
+  text: string;
+  href: string;
+}
+
+/** 页面结构:导航、标题大纲、可交互动作(表单由 DiscoveredForm 单独承载) */
+export interface PageStructure {
+  title?: string;
+  nav: DiscoveredNavItem[];
+  headings: DiscoveredHeading[];
+  actions: DiscoveredAction[];
 }
 
 export interface CandidateCase {

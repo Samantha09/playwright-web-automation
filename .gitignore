@@ -4,6 +4,7 @@ test-results/
 playwright-report/
 data/
 discovered/
+projects/
 .env
 .env.local
 *.log

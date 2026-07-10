@@ -4,6 +4,8 @@ import * as path from 'path';
 import { HeuristicFinder } from './HeuristicFinder';
 import { NetworkRecorder } from './NetworkRecorder';
 import { CandidateGenerator } from './CandidateGenerator';
+import { PageAnalyzer } from './PageAnalyzer';
+import { targetSlug } from '../utils/slug';
 import { DiscoveredPage, DiscoveredForm, DiscoveredApi, CandidateCase } from '../types/discovery';
 
 export interface DiscoveryOptions {
@@ -11,6 +13,8 @@ export interface DiscoveryOptions {
   depth?: number;
   maxPages?: number;
   outputDir?: string;
+  /** target 目录名(--name);不传按主机名派生 */
+  name?: string;
   headless?: boolean;
 }
 
@@ -25,15 +29,11 @@ export interface DiscoveryResult {
 export class DiscoveryEngine {
   private finder = new HeuristicFinder();
   private generator = new CandidateGenerator();
+  private analyzer = new PageAnalyzer();
 
   async discover(options: DiscoveryOptions): Promise<DiscoveryResult> {
-    const {
-      url,
-      depth = 2,
-      maxPages = 50,
-      outputDir = `discovered/${new URL(url).hostname}`,
-      headless = true,
-    } = options;
+    const { url, depth = 2, maxPages = 50, outputDir, name, headless = true } = options;
+    const resolvedOutputDir = outputDir ?? `projects/${targetSlug(url, name)}/discovered`;
 
     const browser = await chromium.launch({ headless });
     const context = await browser.newContext();
@@ -56,7 +56,8 @@ export class DiscoveryEngine {
           await page.goto(currentUrl, { waitUntil: 'networkidle', timeout: 15000 });
           const title = await page.title().catch(() => undefined);
           const links = await this.extractLinks(page, new URL(url).origin);
-          pages.push({ url: currentUrl, title, links });
+          const structure = await this.analyzer.analyze(page);
+          pages.push({ url: currentUrl, title, links, structure });
 
           const forms = await this.finder.findForms(page, currentUrl);
           allForms.push(...forms);
@@ -77,13 +78,17 @@ export class DiscoveryEngine {
     }
 
     const apis = recorder.getApis();
-    const candidates = allForms.flatMap((form) =>
-      this.generator.generateFromForm(form, new URL(url).origin),
-    );
+    const origin = new URL(url).origin;
+    const candidates: CandidateCase[] = [
+      ...allForms.flatMap((form) => this.generator.generateFromForm(form, origin)),
+      ...pages.flatMap((p) =>
+        p.structure ? this.generator.generateFromStructure(p.structure, p.url, origin) : [],
+      ),
+    ];
 
-    this.saveResults(outputDir, { pages, forms: allForms, apis, candidates });
+    this.saveResults(resolvedOutputDir, { pages, forms: allForms, apis, candidates });
 
-    return { outputDir, pages, forms: allForms, apis, candidates };
+    return { outputDir: resolvedOutputDir, pages, forms: allForms, apis, candidates };
   }
 
   private async extractLinks(page: Page, origin: string): Promise<string[]> {
@@ -106,11 +111,22 @@ export class DiscoveryEngine {
     fs.writeFileSync(path.join(outputDir, 'forms.json'), JSON.stringify(data.forms, null, 2));
     fs.writeFileSync(path.join(outputDir, 'apis.json'), JSON.stringify(data.apis, null, 2));
 
+    const used = new Set<string>();
     for (const candidate of data.candidates) {
+      let file = this.safeFileName(candidate.id);
+      let suffix = 2;
+      while (used.has(file)) {
+        file = `${this.safeFileName(candidate.id)}-${suffix++}`;
+      }
+      used.add(file);
       fs.writeFileSync(
-        path.join(outputDir, 'candidates', `${candidate.id}.json`),
+        path.join(outputDir, 'candidates', `${file}.json`),
         JSON.stringify(candidate, null, 2),
       );
     }
+  }
+
+  private safeFileName(id: string): string {
+    return id.replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'candidate';
   }
 }
