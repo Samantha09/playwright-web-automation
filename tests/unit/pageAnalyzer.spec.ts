@@ -29,7 +29,7 @@ test('PageAnalyzer extracts nav, headings and actions', async ({ page }) => {
   ]);
 
   // actions:nav 内的链接被排除;含按钮与文档链接
-  expect(structure.actions.some((a) => a.kind === 'button' && a.selector === '#btn1')).toBe(true);
+  expect(structure.actions.some((a) => a.kind === 'button' && a.selector === 'button#btn1')).toBe(true);
   expect(structure.actions.some((a) => a.kind === 'link' && a.text === '文档')).toBe(true);
   expect(structure.actions.some((a) => a.text === '首页')).toBe(false);
 });
