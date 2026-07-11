@@ -65,48 +65,72 @@ function Card({ children }: { children: React.ReactNode }) {
 }
 
 /* ───────── 页面 Tab ───────── */
-function PagesTab({ pages }: { pages: any[] }) {
+function PagesTab({ pages, name }: { pages: any[]; name: string }) {
+  const [lightbox, setLightbox] = useState<string | null>(null);
   if (pages.length === 0) return <Empty text="无页面" />;
   return (
-    <div className="space-y-2.5">
-      {pages.map((p, i) => {
-        const st = p.structure || {};
-        const nav = st.nav || [];
-        const actions = st.actions || [];
-        const headings = st.headings || [];
-        const url = String(p.url || '').replace(/^https?:\/\/[^/]+/, '') || '/';
-        return (
-          <Card key={i}>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="font-mono text-sm font-semibold text-gray-800">{url}</span>
-              {p.title && <span className="text-xs text-gray-400">{p.title}</span>}
-              <div className="ml-auto flex items-center gap-1.5">
-                <Pill tone="blue">导航 {nav.length}</Pill>
-                <Pill tone="gray">动作 {actions.length}</Pill>
-                <Pill tone="gray">标题 {headings.length}</Pill>
-              </div>
-            </div>
-            {(nav.length > 0 || actions.length > 0) && (
-              <details className="mt-2 group">
-                <summary className="cursor-pointer text-xs text-gray-500 hover:text-gray-700">
-                  展开菜单与动作
-                </summary>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {nav.map((n: any, j: number) => (
-                    <span key={`n${j}`} className="rounded bg-blue-50 px-2 py-0.5 text-xs text-blue-600">{n.text}</span>
-                  ))}
-                  {actions.map((a: any, j: number) => (
-                    <span key={`a${j}`} className="rounded bg-gray-50 px-2 py-0.5 text-xs text-gray-500">
-                      {a.kind === 'button' ? '🔘' : '🔗'} {a.text}
-                    </span>
-                  ))}
+    <>
+      <div className="space-y-2.5">
+        {pages.map((p, i) => {
+          const st = p.structure || {};
+          const nav = st.nav || [];
+          const actions = st.actions || [];
+          const headings = st.headings || [];
+          const url = String(p.url || '').replace(/^https?:\/\/[^/]+/, '') || '/';
+          const shot = p.screenshot
+            ? `/api/targets/${encodeURIComponent(name)}/screenshot/${encodeURIComponent(p.screenshot.split('/').pop() || '')}`
+            : null;
+          return (
+            <Card key={i}>
+              {shot && (
+                <button
+                  type="button"
+                  onClick={() => setLightbox(shot)}
+                  className="mb-3 block w-full overflow-hidden rounded-lg border border-gray-100 bg-gray-50"
+                  title="点击查看大图"
+                >
+                  <img src={shot} alt={url} className="h-40 w-full object-top object-cover" />
+                </button>
+              )}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-mono text-sm font-semibold text-gray-800">{url}</span>
+                {p.title && <span className="text-xs text-gray-400">{p.title}</span>}
+                <div className="ml-auto flex items-center gap-1.5">
+                  <Pill tone="blue">导航 {nav.length}</Pill>
+                  <Pill tone="gray">动作 {actions.length}</Pill>
+                  <Pill tone="gray">标题 {headings.length}</Pill>
                 </div>
-              </details>
-            )}
-          </Card>
-        );
-      })}
-    </div>
+              </div>
+              {(nav.length > 0 || actions.length > 0) && (
+                <details className="mt-2 group">
+                  <summary className="cursor-pointer text-xs text-gray-500 hover:text-gray-700">
+                    展开菜单与动作
+                  </summary>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {nav.map((n: any, j: number) => (
+                      <span key={`n${j}`} className="rounded bg-blue-50 px-2 py-0.5 text-xs text-blue-600">{n.text}</span>
+                    ))}
+                    {actions.map((a: any, j: number) => (
+                      <span key={`a${j}`} className="rounded bg-gray-50 px-2 py-0.5 text-xs text-gray-500">
+                        {a.kind === 'button' ? '🔘' : '🔗'} {a.text}
+                      </span>
+                    ))}
+                  </div>
+                </details>
+              )}
+            </Card>
+          );
+        })}
+      </div>
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6"
+          onClick={() => setLightbox(null)}
+        >
+          <img src={lightbox} alt="截图" className="max-h-full max-w-full rounded-lg shadow-2xl" />
+        </div>
+      )}
+    </>
   );
 }
 
@@ -280,7 +304,7 @@ export default function TargetDetailPage() {
                 );
               })}
             </div>
-            {tab === 'pages' && <PagesTab pages={data.pages} />}
+            {tab === 'pages' && <PagesTab pages={data.pages} name={name} />}
             {tab === 'forms' && <FormsTab forms={data.forms} />}
             {tab === 'apis' && <ApisTab apis={data.apis} />}
             {tab === 'candidates' && <CandidatesTab candidates={data.candidates} />}

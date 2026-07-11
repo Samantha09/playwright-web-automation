@@ -5,7 +5,7 @@ import { HeuristicFinder } from './HeuristicFinder';
 import { NetworkRecorder } from './NetworkRecorder';
 import { CandidateGenerator } from './CandidateGenerator';
 import { PageAnalyzer } from './PageAnalyzer';
-import { targetSlug } from '../utils/slug';
+import { targetSlug, slugify } from '../utils/slug';
 import { DiscoveredPage, DiscoveredForm, DiscoveredApi, CandidateCase } from '../types/discovery';
 
 /** 登录配置:发现到登录表单后用此凭据登录,再爬取认证后内容 */
@@ -87,7 +87,8 @@ export class DiscoveryEngine {
           const title = await page.title().catch(() => undefined);
           const links = await this.extractLinks(page, origin);
           const structure = await this.analyzer.analyze(page);
-          pages.push({ url: currentUrl, title, links, structure });
+          const screenshot = await this.captureScreenshot(page, currentUrl, resolvedOutputDir);
+          pages.push({ url: currentUrl, title, links, structure, screenshot });
 
           const forms = await this.finder.findForms(page, currentUrl);
           allForms.push(...forms);
@@ -227,6 +228,30 @@ export class DiscoveryEngine {
         anchors.map((a) => a.href).filter((href) => href.startsWith('http')),
       );
     return [...new Set(hrefs)].filter((href) => href.startsWith(origin));
+  }
+
+  /** 整页截图,存到 discovered/screenshots/<slug>.png,返回相对路径 */
+  private async captureScreenshot(
+    page: Page,
+    url: string,
+    outputDir: string,
+  ): Promise<string | undefined> {
+    try {
+      let slug = 'root';
+      try {
+        slug = slugify(new URL(url).pathname) || 'root';
+      } catch {
+        /* keep root */
+      }
+      const dir = path.join(outputDir, 'screenshots');
+      fs.mkdirSync(dir, { recursive: true });
+      const file = path.join(dir, `${slug}.png`);
+      await page.screenshot({ path: file, fullPage: true });
+      return `screenshots/${slug}.png`;
+    } catch (error) {
+      console.warn(`Screenshot failed for ${url}: ${error}`);
+      return undefined;
+    }
   }
 
   private saveResults(

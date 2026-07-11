@@ -30,6 +30,8 @@ export interface DiscoveredPage {
   links: string[];
   /** 页面结构模型(导航/标题/动作) */
   structure?: PageStructure;
+  /** 页面截图相对路径(如 screenshots/home.png),相对 discovered 目录 */
+  screenshot?: string;
 }
 
 export interface DiscoveredHeading {
