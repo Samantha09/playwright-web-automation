@@ -39,7 +39,12 @@ export class PageAnalyzer {
       const text = (await el.innerText().catch(() => '')).trim();
       if (!text) continue;
       const href = await el.getAttribute('href').catch(() => null);
-      const selector = await buildSelector(el);
+      const role = await el.getAttribute('role').catch(() => null);
+      // role 限定选择器更精确(避免 :has-text 匹配到祖先容器)
+      const selector =
+        role && text && !text.includes('"')
+          ? `[role="${role}"]:has-text("${text}")`
+          : await buildSelector(el);
       menu.push({ text, ...(href ? { href } : {}), ...(selector ? { selector } : {}) });
     }
 

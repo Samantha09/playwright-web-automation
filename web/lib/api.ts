@@ -49,3 +49,14 @@ export async function startDiscovery(params: {
   });
   return (await r.json()) as DiscoverResult;
 }
+
+export async function fetchRuns(name: string): Promise<any[]> {
+  const r = await fetch(`/api/targets/${encodeURIComponent(name)}/runs`, { cache: 'no-store' });
+  if (!r.ok) throw new Error('加载运行记录失败');
+  return (await r.json()).runs;
+}
+
+export async function runTests(name: string): Promise<{ ok: boolean; run?: any; error?: string }> {
+  const r = await fetch(`/api/targets/${encodeURIComponent(name)}/run`, { method: 'POST' });
+  return await r.json();
+}

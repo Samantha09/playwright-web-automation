@@ -1,4 +1,6 @@
 import { DiscoveryEngine } from '../core/DiscoveryEngine';
+import * as fs from 'fs';
+import * as path from 'path';
 
 async function main() {
   const args = process.argv.slice(2);
@@ -43,6 +45,15 @@ async function main() {
     `Discovery complete: ${result.pages.length} pages, ${result.forms.length} forms, ${result.apis.length} APIs`,
   );
   console.log(`Output: ${result.outputDir}`);
+
+  // 写 config.json(url + 登录凭据 + 深度),供 run-tests 复用
+  const targetDir = path.resolve(result.outputDir, '..');
+  fs.mkdirSync(targetDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(targetDir, 'config.json'),
+    JSON.stringify({ url, name, loginUser: login?.username, loginPass: login?.password, depth }, null, 2),
+    'utf-8',
+  );
 }
 
 main().catch((err) => {

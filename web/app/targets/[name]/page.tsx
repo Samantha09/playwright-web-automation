@@ -3,15 +3,16 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ChevronLeft, Loader2, FileText, FormInput, Globe, FileCode2 } from 'lucide-react';
+import { ChevronLeft, Loader2, FileText, FormInput, Globe, FileCode2, Play } from 'lucide-react';
 import clsx from 'clsx';
-import { fetchTarget, type TargetDetail } from '@/lib/api';
+import { fetchTarget, fetchRuns, runTests, type TargetDetail } from '@/lib/api';
 
 const TABS = [
   { id: 'pages', label: '页面', icon: FileText },
   { id: 'forms', label: '表单', icon: FormInput },
   { id: 'apis', label: 'API', icon: Globe },
   { id: 'candidates', label: '候选', icon: FileCode2 },
+  { id: 'test', label: '测试', icon: Play },
 ] as const;
 type TabId = (typeof TABS)[number]['id'];
 
@@ -245,6 +246,107 @@ function CandidatesTab({ candidates }: { candidates: any[] }) {
   );
 }
 
+/* ───────── 测试 Tab ───────── */
+function RunResult({ run }: { run: any }) {
+  const s = run.summary || {};
+  const entries = Object.entries(run.cases || {}) as [string, any][];
+  return (
+    <Card>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <span className="text-sm font-semibold text-gray-800">最新运行</span>
+        <Pill tone="green">通过 {s.passed || 0}</Pill>
+        <Pill tone="red">失败 {s.failed || 0}</Pill>
+        <Pill tone="gray">共 {s.total || 0}</Pill>
+        <span className="ml-auto font-mono text-xs text-gray-400">{run.runId}</span>
+      </div>
+      <div className="space-y-1.5">
+        {entries.map(([id, c]) => (
+          <div key={id} className="rounded-lg bg-gray-50/60 px-3 py-2">
+            <div className="flex items-center gap-2">
+              <Pill tone={c.status === 'passed' ? 'green' : 'red'}>{c.status === 'passed' ? '通过' : '失败'}</Pill>
+              <span className="font-mono text-xs text-gray-700">{id}</span>
+              {c.error && <span className="ml-auto truncate text-xs text-red-500" title={c.error}>{c.error}</span>}
+            </div>
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              {(c.steps || []).map((st: any, j: number) => (
+                <span
+                  key={j}
+                  className={clsx(
+                    'rounded px-1.5 py-0.5 text-[10px]',
+                    st.status === 'passed' ? 'bg-green-50 text-green-600' : st.status === 'failed' ? 'bg-red-50 text-red-600' : 'bg-gray-100 text-gray-500',
+                  )}
+                  title={st.error || ''}
+                >
+                  {j + 1}.{st.action}
+                </span>
+              ))}
+            </div>
+          </div>
+        ))}
+        {entries.length === 0 && <div className="text-xs text-gray-400">无用例结果</div>}
+      </div>
+    </Card>
+  );
+}
+
+function TestTab({ name }: { name: string }) {
+  const [runs, setRuns] = useState<any[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  const load = async () => {
+    try {
+      setRuns(await fetchRuns(name));
+    } catch (e: any) {
+      setErr(e.message);
+    }
+  };
+  useEffect(() => {
+    load();
+  }, [name]);
+
+  const handleRun = async () => {
+    setBusy(true);
+    setErr('');
+    try {
+      const res = await runTests(name);
+      if (!res.ok) setErr(res.error || '执行失败');
+      await load();
+    } catch (e: any) {
+      setErr(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          onClick={handleRun}
+          disabled={busy}
+          className={clsx(
+            'flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-colors',
+            busy ? 'cursor-not-allowed bg-gray-100 text-gray-400' : 'bg-blue-500 text-white hover:bg-blue-600',
+          )}
+        >
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+          {busy ? '执行中…(约 1 分钟)' : '执行测试'}
+        </button>
+        <span className="text-xs text-gray-400">用 config.json 中的登录凭据,跑全部候选(登录候选由认证前置覆盖,自动跳过)</span>
+      </div>
+      {err && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">{err}</div>}
+      {busy && (
+        <div className="flex items-center gap-2 rounded-xl border border-dashed border-gray-200 py-10 text-sm text-gray-400">
+          <Loader2 className="h-4 w-4 animate-spin" /> 正在登录并执行候选用例…
+        </div>
+      )}
+      {!busy && runs[0] && <RunResult run={runs[0]} />}
+      {!busy && runs.length === 0 && <Empty text="暂无运行记录,点击「执行测试」开始" />}
+    </div>
+  );
+}
+
 export default function TargetDetailPage() {
   const params = useParams<{ name: string }>();
   const name = decodeURIComponent(params.name);
@@ -308,6 +410,7 @@ export default function TargetDetailPage() {
             {tab === 'forms' && <FormsTab forms={data.forms} />}
             {tab === 'apis' && <ApisTab apis={data.apis} />}
             {tab === 'candidates' && <CandidatesTab candidates={data.candidates} />}
+            {tab === 'test' && <TestTab name={name} />}
           </>
         ) : null}
       </div>

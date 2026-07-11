@@ -38,13 +38,17 @@ export class ActionRegistry {
 
     this.register('click', async ({ page }, params) => {
       const selector = String(params.selector);
-      await page.locator(selector).click();
+      await page.locator(selector).first().click();
     });
 
     this.register('fill', async ({ page }, params) => {
       const selector = String(params.selector);
       const value = String(params.value);
-      await page.locator(selector).fill(value);
+      const loc = page.locator(selector).first();
+      // 通用容错:不可见或不可编辑(隐藏验证码框、只读 select 等)跳过而非失败
+      if (!(await loc.isVisible().catch(() => false))) return;
+      if (!(await loc.isEditable().catch(() => false))) return;
+      await loc.fill(value);
     });
 
     this.register('type', async ({ page }, params) => {

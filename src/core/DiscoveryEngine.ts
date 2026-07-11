@@ -5,14 +5,12 @@ import { HeuristicFinder } from './HeuristicFinder';
 import { NetworkRecorder } from './NetworkRecorder';
 import { CandidateGenerator } from './CandidateGenerator';
 import { PageAnalyzer } from './PageAnalyzer';
+import { performLogin, type LoginConfig } from './auth';
 import { targetSlug, slugify } from '../utils/slug';
 import { DiscoveredPage, DiscoveredForm, DiscoveredApi, CandidateCase } from '../types/discovery';
 
-/** 登录配置:发现到登录表单后用此凭据登录,再爬取认证后内容 */
-export interface LoginConfig {
-  username: string;
-  password: string;
-}
+// 登录配置类型由 auth 模块定义(向后兼容导出)
+export type { LoginConfig };
 
 export interface DiscoveryOptions {
   url: string;
@@ -66,7 +64,7 @@ export class DiscoveryEngine {
       // 认证阶段:先登录(用发现的登录表单选择器 + 凭据),拿到会话后再爬
       if (login) {
         try {
-          const loginForm = await this.performLogin(page, url, login);
+          const loginForm = await performLogin(page, url, login);
           if (loginForm) allForms.push(loginForm);
         } catch (error) {
           console.warn(`Login failed: ${error}; continuing unauthenticated.`);
@@ -126,46 +124,6 @@ export class DiscoveryEngine {
     this.saveResults(resolvedOutputDir, { pages, forms: allForms, apis, candidates });
 
     return { outputDir: resolvedOutputDir, pages, forms: allForms, apis, candidates };
-  }
-
-  /** 用发现的登录表单选择器 + 凭据登录,并 dismiss 登录后可能出现的弹窗。返回用到的登录表单 */
-  private async performLogin(
-    page: Page,
-    entryUrl: string,
-    login: LoginConfig,
-  ): Promise<DiscoveredForm | undefined> {
-    await page.goto(entryUrl, { waitUntil: 'load', timeout: 15000 });
-    await page.waitForTimeout(1000);
-    const forms = await this.finder.findForms(page, entryUrl);
-    const loginForm = forms.find((f) => f.fields.some((x) => x.role === 'password'));
-    if (!loginForm) {
-      console.warn(`Login requested but no login form found at ${entryUrl}; continuing unauthenticated.`);
-      return undefined;
-    }
-    const usernameField = loginForm.fields.find((f) => f.role === 'username') || loginForm.fields[0];
-    const passwordField = loginForm.fields.find((f) => f.role === 'password');
-    if (usernameField) await page.locator(usernameField.selector).fill(login.username);
-    if (passwordField) await page.locator(passwordField.selector).fill(login.password);
-    if (loginForm.submitSelector) await page.locator(loginForm.submitSelector).click();
-    await page.waitForTimeout(1500); // 等登录后弹窗出现
-    await this.dismissOverlays(page);
-    await page.waitForTimeout(1500); // 等应用渲染
-    return loginForm;
-  }
-
-  /** 通用:关闭登录/安全提示类弹窗(按常见按钮文本,仅限 modal/dialog 内) */
-  private async dismissOverlays(page: Page): Promise<void> {
-    const texts = ['知道了', '确定', '确认', 'OK', '关闭', 'Close', 'Got it', 'I understand', 'Dismiss', 'Continue'];
-    for (const t of texts) {
-      if (t.includes('"')) continue;
-      const btn = page
-        .locator(`.ant-modal-content button:has-text("${t}"), [role="dialog"] button:has-text("${t}")`)
-        .first();
-      if ((await btn.count().catch(() => 0)) > 0 && (await btn.isVisible().catch(() => false))) {
-        await btn.click().catch(() => undefined);
-        await page.waitForTimeout(300);
-      }
-    }
   }
 
   /** SPA 菜单爬取:展开子菜单,逐个点击菜单项,记录跳转后的同源 URL */

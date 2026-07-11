@@ -112,6 +112,46 @@ function deriveName(url: string): string {
   }
 }
 
+/* ───────── 测试执行(runs) ───────── */
+
+/** 列出某 target 的所有测试运行(最新在前) */
+export function listRuns(name: string): any[] {
+  if (!safeName(name)) return [];
+  const dir = path.join(PROJECTS_DIR, name, 'runs');
+  if (!fs.existsSync(dir)) return [];
+  const runs: any[] = [];
+  for (const f of fs.readdirSync(dir)) {
+    if (!f.endsWith('.json')) continue;
+    const r = readJson<any>(path.join(dir, f));
+    if (r) runs.push(r);
+  }
+  return runs.sort((a, b) => (b.runId || '').localeCompare(a.runId || ''));
+}
+
+/** 读取单次运行详情 */
+export function getRun(name: string, runId: string): any | null {
+  if (!safeName(name) || !/^[a-zA-Z0-9_-]+$/.test(runId)) return null;
+  return readJson<any>(path.join(PROJECTS_DIR, name, 'runs', `${runId}.json`));
+}
+
+/** 子进程调 run-tests CLI,完成后返回最新一次运行 */
+export function runTests(name: string): Promise<{ ok: boolean; run?: any; error?: string }> {
+  return new Promise((resolve) => {
+    const child = spawn('npx', ['tsx', 'src/cli/run-tests.ts', `--target=${name}`], { cwd: REPO_ROOT });
+    let err = '';
+    child.stderr.on('data', (d) => (err += d.toString()));
+    child.on('error', (e) => resolve({ ok: false, error: e.message }));
+    child.on('close', (code) => {
+      if (code !== 0) {
+        resolve({ ok: false, error: err || `exit ${code}` });
+        return;
+      }
+      const runs = listRuns(name);
+      resolve({ ok: true, run: runs[0] || null });
+    });
+  });
+}
+
 /** 子进程调既有 discover CLI(在仓库根运行,避免把 Playwright 打进 Next 包) */
 export function runDiscover(params: DiscoverParams): Promise<DiscoverResult> {
   return new Promise((resolve) => {

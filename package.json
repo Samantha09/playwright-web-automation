@@ -8,6 +8,7 @@
     "lint": "eslint src tests specs",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\" \"specs/**/*.ts\"",
     "discover": "tsx src/cli/discover.ts",
+    "test:run": "tsx src/cli/run-tests.ts",
     "test:ts": "playwright test specs",
     "test:json": "playwright test --config=playwright.json.config.ts",
     "test:unit": "playwright test tests/unit",
