@@ -159,6 +159,22 @@ console.log(text); // LLM-generated JSON case
 
 The provider is deliberately separate from the prompt module: prompts assemble strings, providers make network calls.
 
+## Web Console
+
+A Next.js control console (`web/`) to browse discovered targets and trigger discovery from the browser:
+
+```bash
+cd web
+npm install
+npm run dev   # http://localhost:3000
+```
+
+- **Dashboard** `/`: lists discovered targets (`projects/*/discovered`) with page/form/API/candidate counts.
+- **New discovery** `/discover`: enter URL, target name, optional login credentials, depth → triggers `DiscoveryEngine` → opens the detail.
+- **Target detail** `/targets/[name]`: tabs for Pages / Forms / APIs / Candidates.
+
+The console talks to Next.js route handlers that read `projects/` JSON and spawn the existing `discover` CLI (so Playwright is never bundled into the web app). See `web/README.md`.
+
 ## License
 
 MIT
