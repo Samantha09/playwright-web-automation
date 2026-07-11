@@ -247,9 +247,18 @@ function CandidatesTab({ candidates }: { candidates: any[] }) {
 }
 
 /* ───────── 测试 Tab ───────── */
-function RunResult({ run }: { run: any }) {
+function stepDetail(s: any): string {
+  const p = s.params || {};
+  if (p.selector && p.value !== undefined) return `${p.selector} = ${p.value}`;
+  if (p.selector) return String(p.selector);
+  if (p.url) return String(p.url);
+  return '';
+}
+
+function RunResult({ run, candidates }: { run: any; candidates: any[] }) {
   const s = run.summary || {};
   const entries = Object.entries(run.cases || {}) as [string, any][];
+  const candById = new Map(candidates.map((c: any) => [c.id, c]));
   return (
     <Card>
       <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -259,37 +268,61 @@ function RunResult({ run }: { run: any }) {
         <Pill tone="gray">共 {s.total || 0}</Pill>
         <span className="ml-auto font-mono text-xs text-gray-400">{run.runId}</span>
       </div>
-      <div className="space-y-1.5">
-        {entries.map(([id, c]) => (
-          <div key={id} className="rounded-lg bg-gray-50/60 px-3 py-2">
-            <div className="flex items-center gap-2">
-              <Pill tone={c.status === 'passed' ? 'green' : 'red'}>{c.status === 'passed' ? '通过' : '失败'}</Pill>
-              <span className="font-mono text-xs text-gray-700">{id}</span>
-              {c.error && <span className="ml-auto truncate text-xs text-red-500" title={c.error}>{c.error}</span>}
+      <div className="space-y-2">
+        {entries.map(([id, c]) => {
+          const cand = candById.get(id);
+          const candSteps: any[] = cand?.steps || [];
+          const runSteps: any[] = c.steps || [];
+          const statusOf = (i: number) => runSteps[i]?.status;
+          const asserts: any[] = cand?.assertions || [];
+          return (
+            <div key={id} className="rounded-lg bg-gray-50/60 px-3 py-2.5">
+              <div className="flex items-center gap-2">
+                <Pill tone={c.status === 'passed' ? 'green' : 'red'}>{c.status === 'passed' ? '通过' : '失败'}</Pill>
+                <span className="text-xs font-medium text-gray-700">{cand?.name || id}</span>
+                {cand?.source && <Pill tone="blue">{cand.source}</Pill>}
+                {c.error && (
+                  <span className="ml-auto truncate text-xs text-red-500" title={c.error}>⚠ {c.error.slice(0, 50)}</span>
+                )}
+              </div>
+              <div className="mt-1.5 space-y-0.5">
+                {candSteps.map((st, j) => {
+                  const ss = statusOf(j);
+                  const det = stepDetail(st);
+                  return (
+                    <div key={j} className="flex items-center gap-2 text-xs">
+                      <span
+                        className={clsx(
+                          'h-2 w-2 flex-shrink-0 rounded-full',
+                          ss === 'passed' ? 'bg-green-400' : ss === 'failed' ? 'bg-red-400' : 'bg-gray-300',
+                        )}
+                      />
+                      <span className="w-14 flex-shrink-0 text-gray-500">{st.action}</span>
+                      {det && <code className="truncate font-mono text-gray-600">{det}</code>}
+                    </div>
+                  );
+                })}
+              </div>
+              {asserts.length > 0 && (
+                <div className="mt-1.5 flex flex-wrap items-center gap-1 border-t border-gray-200/60 pt-1.5">
+                  <span className="text-[11px] text-gray-400">断言</span>
+                  {asserts.map((a, k) => (
+                    <span key={k} className="rounded bg-amber-50 px-1.5 py-0.5 text-[11px] text-amber-600">
+                      {a.type}{a.expected != null ? ` ${a.expected}` : ''}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
-            <div className="mt-1.5 flex flex-wrap gap-1">
-              {(c.steps || []).map((st: any, j: number) => (
-                <span
-                  key={j}
-                  className={clsx(
-                    'rounded px-1.5 py-0.5 text-[10px]',
-                    st.status === 'passed' ? 'bg-green-50 text-green-600' : st.status === 'failed' ? 'bg-red-50 text-red-600' : 'bg-gray-100 text-gray-500',
-                  )}
-                  title={st.error || ''}
-                >
-                  {j + 1}.{st.action}
-                </span>
-              ))}
-            </div>
-          </div>
-        ))}
+          );
+        })}
         {entries.length === 0 && <div className="text-xs text-gray-400">无用例结果</div>}
       </div>
     </Card>
   );
 }
 
-function TestTab({ name }: { name: string }) {
+function TestTab({ name, candidates }: { name: string; candidates: any[] }) {
   const [runs, setRuns] = useState<any[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -341,7 +374,7 @@ function TestTab({ name }: { name: string }) {
           <Loader2 className="h-4 w-4 animate-spin" /> 正在登录并执行候选用例…
         </div>
       )}
-      {!busy && runs[0] && <RunResult run={runs[0]} />}
+      {!busy && runs[0] && <RunResult run={runs[0]} candidates={candidates} />}
       {!busy && runs.length === 0 && <Empty text="暂无运行记录,点击「执行测试」开始" />}
     </div>
   );
@@ -410,7 +443,7 @@ export default function TargetDetailPage() {
             {tab === 'forms' && <FormsTab forms={data.forms} />}
             {tab === 'apis' && <ApisTab apis={data.apis} />}
             {tab === 'candidates' && <CandidatesTab candidates={data.candidates} />}
-            {tab === 'test' && <TestTab name={name} />}
+            {tab === 'test' && <TestTab name={name} candidates={data.candidates} />}
           </>
         ) : null}
       </div>
